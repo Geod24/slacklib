@@ -16,3 +16,7 @@ subPackage {
   dependency "slacklib:lib" version="*"
   versions "VibeDefaultMain"
 }
+
+// Main package just depends on everything
+dependency "slacklib:lib" version="*"
+dependency "slacklib:example-simple" version="*"
