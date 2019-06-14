@@ -1,6 +1,7 @@
 # Slacklib
 
-Simple Vibe.d based library to write Slack bots
+Simple Vibe.d based library to write Slack bots using the [RTM API](https://api.slack.com/rtm).
+Slack also offers the [Events API](https://api.slack.com/events-api) which this does not support.
 
 ## Dependency
 
