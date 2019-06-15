@@ -1,0 +1,7 @@
+language: d
+
+d:
+  - dmd
+  - dmd-2.086.0
+  - ldc
+  - ldc-1.15.0
