@@ -45,7 +45,7 @@ public abstract class SlackClient
         assert(socket !is null, "No websocket instance provided");
         assert(infos["ok"].to!bool == true, "Slack answer was not positive");
     }
-    body
+    do
     {
         this.token = token;
         this.socket = socket;
