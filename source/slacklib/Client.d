@@ -144,7 +144,7 @@ public abstract class SlackClient
                    beforehand.
             request = Optional request delegate. When not provided (or `null`
                       is provided), will send a `POST` request.
-            responder = Optional response delegate. WHen not provided (or `null`
+            responder = Optional response delegate. When not provided (or `null`
                         is provided), will do nothing.
 
     ***************************************************************************/
@@ -157,42 +157,29 @@ public abstract class SlackClient
     /// Ditto
     public static auto webr (cstring method, cstring token, cstring[] args...)
     {
+        cstring[2] extra = [ "token=", token ];
+        return SlackClient.webrImpl(method, extra, args);
+    }
+
+    protected static auto webrImpl (cstring method, cstring[] extra, cstring[] args...)
+    {
         static mstring url_buffer;
         url_buffer.length = 0;
         url_buffer.assumeSafeAppend;
 
         url_buffer ~= `https://slack.com/api/`;
         url_buffer ~= method;
-        url_buffer ~= `?token=`;
-        url_buffer ~= token;
-        foreach (value; args)
-            url_buffer ~= value;
-
-        static struct WebReq
+        foreach (idx, value; extra)
         {
-            cstring buffer_slice;
-            public void request (
-                scope void delegate(scope HTTPClientRequest) requester = null,
-                scope void delegate(scope HTTPClientResponse) responder = null)
-            {
-                // cast required because requestHTTP expose a bad interface
-                istring url = cast(istring) url_buffer;
-                scope typeof(requester) def_requester
-                    = (scope req) { req.method = HTTPMethod.POST; };
-                scope typeof(responder) def_responder
-                    = (scope res) {
-                        if (res.statusCode != 200)
-                            logError("Error for request: [%s]: %s",
-                                     this.buffer_slice, res.statusPhrase);
-                        else
-                            logDebugV("Request succeeded: [%s]", this.buffer_slice);
-                    };
-                requestHTTP(
-                    url,
-                    requester !is null ? requester : def_requester,
-                    responder !is null ? responder : def_responder);
-            }
+            url_buffer ~= (idx ? '&' : '?');
+            url_buffer ~= value;
         }
+        foreach (idx, value; args)
+        {
+            url_buffer ~= (extra.length || idx ? '&' : '?');
+            url_buffer ~= value;
+        }
+
         return WebReq(url_buffer);
     }
 
@@ -204,4 +191,38 @@ public abstract class SlackClient
     protected ulong request_id;
     /// Json object, result of `rtm.connect` or `rtm.start`
     protected Json infos;
+}
+
+
+/// A private struct that performs a WebRequest
+private static struct WebReq
+{
+    /// Type of delegate that handles a request
+    public alias Requester = void delegate(scope HTTPClientRequest);
+    /// Type of delegate that handles a response
+    public alias Responder = void delegate(scope HTTPClientResponse);
+
+    cstring buffer_slice;
+    public void request (
+        scope Requester requester = null, scope Responder responder = null)
+    {
+        // cast required because requestHTTP expose a bad interface
+        istring url = cast(istring) buffer_slice;
+        scope Requester def_requester = (scope req)
+            {
+                req.method = HTTPMethod.POST;
+            };
+        scope Responder def_responder = (scope res)
+            {
+                if (res.statusCode != 200)
+                    logError("Error for request: [%s]: %s",
+                             url, res.statusPhrase);
+                else
+                    logDebugV("Request succeeded: [%s]", url);
+            };
+        requestHTTP(
+            url,
+            requester !is null ? requester : def_requester,
+            responder !is null ? responder : def_responder);
+    }
 }
