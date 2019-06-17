@@ -76,7 +76,8 @@ public class Client : SlackClient
 
         auto sock = connectWebSocket(URL(infos["url"].get!istring));
         auto hello_msg = sock.receiveText();
-        enforce(hello_msg == `{"type":"hello"}`,
+        auto msg = parseJsonString(hello_msg);
+        enforce(msg["type"].get!string == `hello`,
             "Expected 'hello' message, but got: " ~ hello_msg);
         return new Client(token, sock, infos);
     }
