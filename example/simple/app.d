@@ -64,8 +64,8 @@ public class Client : SlackClient
         enforce(token.length, "Empty token provided");
         Json infos;
 
-        SlackClient.webr("rtm.connect", token).request(
-            (scope HTTPClientRequest req) {},
+        auto auth = "Bearer " ~ token;
+        /*SlackClient.*/webr("rtm.connect", auth).request(
             (scope HTTPClientResponse res) { infos = res.readJson; });
 
         scope (failure)
@@ -103,6 +103,8 @@ public class Client : SlackClient
     /// Just log received messages and pretty-print messages
     public void handle (Json json)
     {
+        import std.algorithm.searching : any;
+
         logInfo("Received: %s", json);
         auto type = enforce("type" in json, "No type in json");
         if (type.to!string == "pong")

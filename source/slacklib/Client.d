@@ -38,7 +38,7 @@ public abstract class SlackClient
 
     ***************************************************************************/
 
-    protected this (istring token, WebSocket socket, Json infos)
+    protected this (cstring token, WebSocket socket, Json infos)
     in
     {
         assert(token.length, "No token provided");
@@ -47,7 +47,8 @@ public abstract class SlackClient
     }
     do
     {
-        this.token = token;
+        this.authorization = "Bearer ";
+        this.authorization ~= token;
         this.socket = socket;
         this.infos = infos;
     }
@@ -136,32 +137,22 @@ public abstract class SlackClient
 
         Params:
             method = Method to request
-            token = For the static version only, authentication token to use.
+            token = For the static version only, `Authorization` header to use.
                     The non-static version uses the stored stoken.
             args = Variadic list of argument to append to the URL
                    Arguments are appended verbatim and any pre-processing
                    (e.g. URL encoding for messages text) should be done
                    beforehand.
-            request = Optional request delegate. When not provided (or `null`
-                      is provided), will send a `POST` request.
-            responder = Optional response delegate. When not provided (or `null`
-                        is provided), will do nothing.
 
     ***************************************************************************/
 
     protected auto web (cstring method, cstring[] args...)
     {
-        return SlackClient.webr(method, this.token, args);
+        return SlackClient.webr(method, this.authorization, args);
     }
 
     /// Ditto
-    public static auto webr (cstring method, cstring token, cstring[] args...)
-    {
-        cstring[2] extra = [ "token=", token ];
-        return SlackClient.webrImpl(method, extra, args);
-    }
-
-    protected static auto webrImpl (cstring method, cstring[] extra, cstring[] args...)
+    protected static auto webr (cstring method, istring auth, cstring[] args...)
     {
         static mstring url_buffer;
         url_buffer.length = 0;
@@ -169,24 +160,20 @@ public abstract class SlackClient
 
         url_buffer ~= `https://slack.com/api/`;
         url_buffer ~= method;
-        foreach (idx, value; extra)
+        foreach (idx, value; args)
         {
             url_buffer ~= (idx ? '&' : '?');
             url_buffer ~= value;
         }
-        foreach (idx, value; args)
-        {
-            url_buffer ~= (extra.length || idx ? '&' : '?');
-            url_buffer ~= value;
-        }
 
-        return WebReq(url_buffer);
+        return WebReq(url_buffer, auth);
     }
 
     /// Websocket used for two-ways communication
     protected WebSocket socket;
-    /// Token used for authentication, represent the bot user
-    protected istring token;
+    /// Cached value for authorization field
+    /// Contains the token used for authentication, represent the bot user
+    protected istring authorization;
     /// Request id to send to the Slack API
     protected ulong request_id;
     /// Json object, result of `rtm.connect` or `rtm.start`
@@ -202,27 +189,35 @@ private static struct WebReq
     /// Type of delegate that handles a response
     public alias Responder = void delegate(scope HTTPClientResponse);
 
-    cstring buffer_slice;
+    /// Slice of the url buffer
+    cstring url_buffer;
+    /// Value of the Authorization header field - probably `Bearer ....`
+    istring authorization;
+
+    /// Interface exposed to the users to make requests
     public void request (
-        scope Requester requester = null, scope Responder responder = null)
+        scope Responder responder = null, scope Requester requester = null)
     {
         // cast required because requestHTTP expose a bad interface
-        istring url = cast(istring) buffer_slice;
+        istring url = cast(istring) this.url_buffer;
         scope Requester def_requester = (scope req)
             {
                 req.method = HTTPMethod.POST;
+                if (this.authorization.length)
+                    req.headers["Authorization"] = this.authorization;
+                if (requester !is null)
+                    requester(req);
             };
         scope Responder def_responder = (scope res)
             {
                 if (res.statusCode != 200)
                     logError("Error for request: [%s]: %s",
                              url, res.statusPhrase);
+                else if (responder !is null)
+                    responder(res);
                 else
                     logDebugV("Request succeeded: [%s]", url);
             };
-        requestHTTP(
-            url,
-            requester !is null ? requester : def_requester,
-            responder !is null ? responder : def_responder);
+        requestHTTP(url, def_requester, def_responder);
     }
 }
